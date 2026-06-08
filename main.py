@@ -22,9 +22,9 @@ class Game(object):
         self.game_state = "VISER"
         
         # Position intiale du ballon
-        self.initial_ball_pos = np.array([0.0, -0.2, -9.0], dtype=np.float32)
+        self.initial_ball_pos = np.array([0.0, -0.8, -9.0], dtype=np.float32)
         self.pos = np.copy(self.initial_ball_pos)
-        self.radius = 1.0
+        self.radius = 0.4
         
         # Variables de visée (Oscillation de l'angle)
         self.aim_angle_Y = 0.0      # Angle actuel de la flèche de visée
@@ -108,10 +108,10 @@ class Game(object):
         # --- Cage de foot ---
         # Format: [x, y, z, nx, ny, nz, r, g, b, u, v]
         sommets_cage = np.array([
-            -1.5, 0.0, 0.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0,  # Sommet 0 : Bas Gauche
-            -1.5, 1.0, 0.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 1.0,  # Sommet 1 : Haut Gauche
-            1.5, 0.0, 0.0,   0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0,  # Sommet 2 : Bas Droite
-            1.5, 1.0, 0.0,   0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 1.0   # Sommet 3 : Haut Droite
+            -7.32, 0.0,  0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  0.0, 0.0,  # 0 : Bas Gauche
+            -7.32, 4.88, 0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  0.0, 1.0,  # 1 : Haut Gauche
+             7.32, 0.0,  0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  1.0, 0.0,  # 2 : Bas Droite
+              7.32, 4.88, 0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  1.0, 1.0   # 3 : Haut Droite
         ], dtype=np.float32)
         # Indices pour former les deux triangles du rectangle
         index_cage = np.array([0, 1, 2,  1, 2, 3], dtype=np.uint32)
@@ -287,18 +287,16 @@ class Game(object):
         }
 
     def generate_arrow_mesh():
-        """ Maillage de flèche horizontale décalé devant le ballon """
-        # Les coordonnées locales en Z ont été reculées de 1.0 unité vers l'avant (axe -Z)
-        # La base commence à -1.5 et la pointe se termine à -5.0
+        """ Maillage de flèche horizontale ajusté pour le ballon de rayon 0.4 """
         vertices = [
-            [-0.2, -0.98, -1.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0], 
-            [ 0.2, -0.98, -1.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0], 
-            [ 0.2, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
-            [-0.2, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
+            [-0.1, -0.38, -0.6,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0], 
+            [ 0.1, -0.38, -0.6,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0], 
+            [ 0.1, -0.38, -2.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
+            [-0.1, -0.38, -2.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
             
-            [-0.6, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
-            [ 0.6, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
-            [ 0.0, -0.98, -5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.5, 1.0]  
+            [-0.3, -0.38, -2.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
+            [ 0.3, -0.38, -2.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
+            [ 0.0, -0.38, -3.2,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.5, 1.0]  
         ]
         indices = [0, 1, 2,  0, 2, 3,  4, 5, 6]
         return {'interlaced': np.array(vertices, dtype=np.float32), 'faces': np.array(indices, dtype=np.uint32)}
@@ -378,20 +376,14 @@ class Game(object):
           
             # Affichage de la cage
             GL.glBindVertexArray(self.vao_cage)
-            
-            # 1. On translate la cage au fond du terrain (Z = -12.0)
-            # Et on la pose sur le sol (Y = -1.2 pour correspondre à votre sol_y)
-            pos_cage = np.array([0.0, -1.2, -12.0], dtype=np.float32)
+            pos_cage = np.array([0.0, -1.2, -32.9], dtype=np.float32)
             model_cage = pyrr.matrix44.create_from_translation(pos_cage)
-            
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
             
             # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
-            
-            # 3. On dessine (avec c_void_p(0) pour éviter les bugs liés à None)
-            from ctypes import c_void_p
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id2)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
+            
             # Affichage de la flèche
             if self.game_state == "VISER":
                 GL.glBindVertexArray(self.vao_fleche)
