@@ -217,6 +217,46 @@ class Game(object):
         GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_sol)
         GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_sol, GL.GL_STATIC_DRAW)
 
+        # Le triangle noir (Fond fixe sur la droite de l'écran)
+        sommets_jauge_noire = np.array([
+            # X, Y, Z,        Nx, Ny, Nz,   R, G, B,     U, V
+            0.80, -0.6, 0.0,  0.0,0.0,1.0,  0.0,0.0,0.0, 0.0,0.0, # Bas gauche
+            0.95, -0.6, 0.0,  0.0,0.0,1.0,  0.0,0.0,0.0, 0.0,0.0, # Bas droite
+            0.875, 0.6, 0.0,  0.0,0.0,1.0,  0.0,0.0,0.0, 0.0,0.0  # Haut centre
+        ], dtype=np.float32)
+
+        # Le triangle rouge (Construit autour de l'origine locale pour pouvoir l'étirer vers le haut)
+        sommets_jauge_rouge = np.array([
+            -0.06,  0.00, 0.0,  0.0,0.0,1.0,  1.0,0.0,0.0, 0.0,0.0, # Bas gauche
+             0.06,  0.00, 0.0,  0.0,0.0,1.0,  1.0,0.0,0.0, 0.0,0.0, # Bas droite
+             0.00,  1.16, 0.0,  0.0,0.0,1.0,  1.0,0.0,0.0, 0.0,0.0  # Haut centre
+        ], dtype=np.float32)
+
+        # Création du VAO Noir
+        self.vao_jauge_noire = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.vao_jauge_noire)
+        vbo_noir = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_noir)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, sommets_jauge_noire, GL.GL_STATIC_DRAW)
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(0))
+        GL.glEnableVertexAttribArray(2) # Pointeur de couleur
+        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
+
+        # Création du VAO Rouge
+        self.vao_jauge_rouge = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.vao_jauge_rouge)
+        vbo_rouge = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_rouge)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, sommets_jauge_rouge, GL.GL_STATIC_DRAW)
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(0))
+        GL.glEnableVertexAttribArray(2) # Pointeur de couleur
+        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
+
+        # Variable de puissance
+        self.power = 0.0
+
         # Chargement des textures
         self.texture_id1 = Game.load_texture('texture.png')  # Ballon
         self.texture_id2 = Game.load_texture('texture2.png') # Flèche
@@ -398,7 +438,40 @@ class Game(object):
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_arrow)
                 GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id2) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
-            
+            # --- GESTION ET AFFICHAGE DE LA JAUGE (HUD) ---
+            if self.game_state == "CHARGER":
+                # 1. Mise à jour de la puissance (augmente au fil du temps)
+                self.power += dt * 1.5 # Vitesse de remplissage
+                if self.power > 1.0:
+                    self.power = 1.0 # Plafond maximum
+                
+                # 2. On désactive la profondeur pour écrire "par-dessus" l'écran
+                GL.glDisable(GL.GL_DEPTH_TEST)
+                
+                # 3. On écrase la projection et la caméra avec des matrices neutres
+                mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
+                GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
+                GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
+                
+                # 4. Affichage du Triangle Noir
+                GL.glBindVertexArray(self.vao_jauge_noire)
+                GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, mat_identite)
+                GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+                
+                # 5. Affichage du Triangle Rouge (Étiré selon la puissance)
+                GL.glBindVertexArray(self.vao_jauge_rouge)
+                # On place sa base à Y = -0.58 et X = 0.875
+                trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
+                # On l'étire sur l'axe Y en fonction de la puissance
+                scale_rouge = pyrr.matrix44.create_from_scale(np.array([1.0, self.power, 1.0], dtype=np.float32))
+                model_rouge = pyrr.matrix44.multiply(scale_rouge, trans_rouge)
+                
+                GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_rouge)
+                GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+                
+                # 6. On réactive la profondeur pour la frame 3D suivante
+                GL.glEnable(GL.GL_DEPTH_TEST)
+
             glfw.swap_buffers(self.window)
             glfw.poll_events()
             
@@ -407,29 +480,30 @@ class Game(object):
              
     
     def key_callback(self, win, key, scancode, action, mods):
-        # sortie du programme si appui sur la touche 'echap'
-        if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
-            glfw.set_window_should_close(win, glfw.TRUE)
-        # Appui sur ESPACE : Verrouille la cible et déclenche le tir
-        if key == glfw.KEY_SPACE and action == glfw.PRESS:
-            if self.game_state == "VISER":
-                self.game_state = "TIR"
-                self.angle_Y = self.aim_angle_Y # Sauvegarde de l'angle précis au moment du clic
+        # Appui sur ESPACE : Verrouille la cible et commence à charger la jauge
+        if key == glfw.KEY_SPACE:
+            if action == glfw.PRESS and self.game_state == "VISER":
+                self.game_state = "CHARGER"
+                self.angle_Y = self.aim_angle_Y
+                self.power = 0.0 # On réinitialise la puissance
                 
-                # Calcul du vecteur de direction
+            # Relâchement de ESPACE : On déclenche le tir !
+            elif action == glfw.RELEASE and self.game_state == "CHARGER":
+                self.game_state = "TIR"
+                
+                # Le tir dépend maintenant de la jauge (entre 5.0 et 25.0 de puissance par exemple)
+                actual_force = 5.0 + (self.power * 20.0) 
+                
                 dir_x = np.sin(self.angle_Y)
                 dir_z = -np.cos(self.angle_Y)
-                dir_y = 0.6  # Donne une impulsion vers le haut pour créer une trajectoire en cloche (lob)
+                dir_y = 0.6  
                 
                 launch_vector = np.array([dir_x, dir_y, dir_z], dtype=np.float32)
-                # Normalisation du vecteur pour appliquer une force constante
                 launch_vector = launch_vector / np.linalg.norm(launch_vector)
                 
-                # Application de la vitesse initiale
-                self.velocity = launch_vector * self.shot_force
+                self.velocity = launch_vector * actual_force
                 
-            elif self.game_state == "TIR":
-                # Si le ballon est déjà lancé, un nouvel appui sur Espace réinitialise le tir pour rejouer
+            elif action == glfw.PRESS and self.game_state == "TIR":
                 self.game_state = "VISER"
 
 def main():
