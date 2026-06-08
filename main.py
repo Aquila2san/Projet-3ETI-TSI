@@ -438,39 +438,44 @@ class Game(object):
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_arrow)
                 GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id2) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
+
             # --- GESTION ET AFFICHAGE DE LA JAUGE (HUD) ---
+            # 1. On désactive la profondeur pour écrire "par-dessus" l'écran 3D
+            GL.glDisable(GL.GL_DEPTH_TEST)
+            
+            # 2. On écrase la projection et la caméra avec des matrices neutres
+            mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
+            GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
+            GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
+            
+            # (Astuce : on lie la texture du ballon qui contient sûrement du blanc pour 
+            # éviter que le rouge ne soit effacé par une texture transparente)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
+            
+            # 3. Affichage du Triangle Noir (TOUJOURS VISIBLE)
+            GL.glBindVertexArray(self.vao_jauge_noire)
+            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, mat_identite)
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+            
+            # 4. Gestion et affichage du Triangle Rouge (UNIQUEMENT PENDANT LA CHARGE)
             if self.game_state == "CHARGER":
-                # 1. Mise à jour de la puissance (augmente au fil du temps)
-                self.power += dt * 1.5 # Vitesse de remplissage
+                # Mise à jour de la puissance
+                self.power += dt * 1.5 
                 if self.power > 1.0:
                     self.power = 1.0 # Plafond maximum
                 
-                # 2. On désactive la profondeur pour écrire "par-dessus" l'écran
-                GL.glDisable(GL.GL_DEPTH_TEST)
-                
-                # 3. On écrase la projection et la caméra avec des matrices neutres
-                mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
-                GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
-                GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
-                
-                # 4. Affichage du Triangle Noir
-                GL.glBindVertexArray(self.vao_jauge_noire)
-                GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, mat_identite)
-                GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
-                
-                # 5. Affichage du Triangle Rouge (Étiré selon la puissance)
                 GL.glBindVertexArray(self.vao_jauge_rouge)
-                # On place sa base à Y = -0.58 et X = 0.875
+                
+                # Transformations : l'opérateur @ applique la mise à l'échelle PUIS le placement
                 trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
-                # On l'étire sur l'axe Y en fonction de la puissance
                 scale_rouge = pyrr.matrix44.create_from_scale(np.array([1.0, self.power, 1.0], dtype=np.float32))
-                model_rouge = pyrr.matrix44.multiply(scale_rouge, trans_rouge)
+                model_rouge = scale_rouge @ trans_rouge
                 
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_rouge)
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
                 
-                # 6. On réactive la profondeur pour la frame 3D suivante
-                GL.glEnable(GL.GL_DEPTH_TEST)
+            # 5. On réactive la profondeur pour la frame 3D suivante
+            GL.glEnable(GL.GL_DEPTH_TEST)
 
             glfw.swap_buffers(self.window)
             glfw.poll_events()
