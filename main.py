@@ -8,6 +8,7 @@ import pyrr
 from ctypes import *
 from PIL import Image
 
+
 class Game(object):
     """ fenêtre GLFW avec openGL """
 
@@ -21,19 +22,19 @@ class Game(object):
         self.game_state = "VISER"
         
         # Position intiale du ballon
-        self.initial_ball_pos = np.array([0.0, -0.2, -5.0], dtype=np.float32)
+        self.initial_ball_pos = np.array([0.0, -0.2, -9.0], dtype=np.float32)
         self.pos = np.copy(self.initial_ball_pos)
         self.radius = 1.0
         
         # Variables de visée (Oscillation de l'angle)
         self.aim_angle_Y = 0.0      # Angle actuel de la flèche de visée
-        self.aim_speed = 2.0        # Vitesse d'oscillation de la visée
+        self.aim_speed = 2.5        # Vitesse d'oscillation de la visée
         self.angle_Y = 0.0          # Angle final verrouillé pour la rotation du ballon
         
         # Physique du ballon
         self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32) # Vitesse initiale
         self.gravity = np.array([0.0, -9.81, 0.0], dtype=np.float32) # Accélération g = (0, -9.81, 0)
-        self.shot_force = 12.0      # Puissance de propulsion du ballon
+        self.shot_force = 14.0      # Puissance de propulsion du ballon
         
 
 
@@ -154,9 +155,35 @@ class Game(object):
         GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_fleche)
         GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_fleche, GL.GL_STATIC_DRAW)
 
+        # Maillage du sol
+        donnees_sol = Game.generate_floor_mesh()
+        sommets_sol = donnees_sol['interlaced']
+        index_sol = donnees_sol['faces']
+        self.nb_indices_sol = index_sol.size
+
+        self.vao_sol = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.vao_sol)
+        vbo_sol = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_sol)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, sommets_sol, GL.GL_STATIC_DRAW)
+
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, None)
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(3 * sizeof(c_float)))
+        GL.glEnableVertexAttribArray(2)
+        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
+        GL.glEnableVertexAttribArray(3)
+        GL.glVertexAttribPointer(3, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(9 * sizeof(c_float)))
+
+        vboi_sol = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_sol)
+        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_sol, GL.GL_STATIC_DRAW)
+
         # Chargement des textures
-        self.texture_id1 = Game.load_texture('texture.png')
-        self.texture_id2 = Game.load_texture('texture2.png')
+        self.texture_id1 = Game.load_texture('texture.png')  # Ballon
+        self.texture_id2 = Game.load_texture('texture2.png') # Flèche
+        self.texture_id3 = Game.load_texture('terrain.png')  # Pelouse / Lignes du terrain
 
     def load_texture(filename):
         if not os.path.exists(filename):
@@ -223,25 +250,32 @@ class Game(object):
         }
 
     def generate_arrow_mesh():
-        """ Construit un maillage 3D propre de flèche plane horizontale (Corps + Pointe) """
-        # Format d'un sommet: [x, y, z, nx, ny, nz, r, g, b, u, v]
-        # Normale orientée vers le haut constant (0, 1, 0)
+        """ Maillage de flèche horizontale décalé devant le ballon """
+        # Les coordonnées locales en Z ont été reculées de 1.0 unité vers l'avant (axe -Z)
+        # La base commence à -1.5 et la pointe se termine à -5.0
         vertices = [
-            # Corps de la flèche (Rectangle de Z=-0.5 à Z=-2.5)
-            [-0.2, -1.15, -0.5,  0.0, 1.0, 0.0,  1.0, 0.5, 0.0,  0.0, 0.0], # 0 : Base Arrière Gauche
-            [ 0.2, -1.15, -0.5,  0.0, 1.0, 0.0,  1.0, 0.5, 0.0,  1.0, 0.0], # 1 : Base Arrière Droite
-            [ 0.2, -1.15, -2.5,  0.0, 1.0, 0.0,  1.0, 0.5, 0.0,  1.0, 0.8], # 2 : Jonction Devant Droite
-            [-0.2, -1.15, -2.5,  0.0, 1.0, 0.0,  1.0, 0.5, 0.0,  0.0, 0.8], # 3 : Jonction Devant Gauche
+            [-0.2, -0.98, -1.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0], 
+            [ 0.2, -0.98, -1.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0], 
+            [ 0.2, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
+            [-0.2, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
             
-            # Pointe de la flèche (Triangle de Z=-2.5 à Z=-4.0)
-            [-0.6, -1.15, -2.5,  0.0, 1.0, 0.0,  1.0, 0.2, 0.0,  0.0, 0.8], # 4 : Aile Gauche
-            [ 0.6, -1.15, -2.5,  0.0, 1.0, 0.0,  1.0, 0.2, 0.0,  1.0, 0.8], # 5 : Aile Droite
-            [ 0.0, -1.15, -4.0,  0.0, 1.0, 0.0,  1.0, 0.0, 0.0,  0.5, 1.0]  # 6 : Pointe Extrême
+            [-0.6, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.8], 
+            [ 0.6, -0.98, -3.5,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.8], 
+            [ 0.0, -0.98, -5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.5, 1.0]  
         ]
-        indices = [
-            0, 1, 2,  0, 2, 3,  # Triangles du corps
-            4, 5, 6             # Triangle de la pointe
+        indices = [0, 1, 2,  0, 2, 3,  4, 5, 6]
+        return {'interlaced': np.array(vertices, dtype=np.float32), 'faces': np.array(indices, dtype=np.uint32)}
+    
+    def generate_floor_mesh():
+        """ Grand plan horizontal à Y = -1.2 pour accueillir le terrain """
+        # Couvre une large zone pour le fond du décor (X de -20 à 20, Z de +5 à -35)
+        vertices = [
+            [-25.0, -1.2,   5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0],
+            [ 25.0, -1.2,   5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0],
+            [ 25.0, -1.2, -35.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 1.0],
+            [-25.0, -1.2, -35.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 1.0]
         ]
+        indices = [0, 1, 2,  0, 2, 3]
         return {'interlaced': np.array(vertices, dtype=np.float32), 'faces': np.array(indices, dtype=np.uint32)}
 
     def run(self):
@@ -252,7 +286,8 @@ class Game(object):
             dt = current_time - last_time
             last_time = current_time
             dt = min(dt, 0.1)
-            GL.glClearColor(0.2, 0.5, 0.2, 1.0) # Fond vert terrain
+            # Ciel bleu
+            GL.glClearColor(0.5, 0.7, 1.0, 1.0)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             
             prog = GL.glGetIntegerv(GL.GL_CURRENT_PROGRAM) 
@@ -281,13 +316,20 @@ class Game(object):
                     self.velocity[2] *= 0.98
             
             # Configuration de la caméra
-            camera_pos = np.array([0.0, 6.0, 0.0], dtype=np.float32)
-            target_look = np.array([0.0, -1.0, -12.0], dtype=np.float32)
+            camera_pos = np.array([0.0, 5.5, 1.0], dtype=np.float32)
+            target_look = np.array([0.0, -0.2, -22.0], dtype=np.float32)
             view_matrix = pyrr.matrix44.create_look_at(camera_pos, target_look, np.array([0.0, 1.0, 0.0], dtype=np.float32))
-            proj_matrix = pyrr.matrix44.create_perspective_projection_matrix(45.0, 1.0, 0.5, 60.0)
+            proj_matrix = pyrr.matrix44.create_perspective_projection_matrix(45.0, 1.0, 0.5, 100.0)
             
             GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, proj_matrix)
             GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, view_matrix)
+            
+            # Affichage du terrain 
+            GL.glBindVertexArray(self.vao_sol)
+            model_sol = pyrr.matrix44.create_from_translation(np.array([0.0, 0.0, 0.0], dtype=np.float32))
+            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_sol)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id3)
+            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_sol, GL.GL_UNSIGNED_INT, None)
             
             # Affichage du ballon
             GL.glBindVertexArray(self.vao_ballon)
