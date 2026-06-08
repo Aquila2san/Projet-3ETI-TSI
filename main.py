@@ -105,6 +105,43 @@ class Game(object):
 
         stride = 11 * sizeof(c_float)
 
+        # --- Cage de foot ---
+        # Format: [x, y, z, nx, ny, nz, r, g, b, u, v]
+        sommets_cage = np.array([
+            -1.5, 0.0, 0.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0,  # Sommet 0 : Bas Gauche
+            -1.5, 1.0, 0.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 1.0,  # Sommet 1 : Haut Gauche
+            1.5, 0.0, 0.0,   0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0,  # Sommet 2 : Bas Droite
+            1.5, 1.0, 0.0,   0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 1.0   # Sommet 3 : Haut Droite
+        ], dtype=np.float32)
+        # Indices pour former les deux triangles du rectangle
+        index_cage = np.array([0, 1, 2,  1, 2, 3], dtype=np.uint32)
+        self.nb_indices_cage = index_cage.size
+
+        self.vao_cage = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.vao_cage)
+        vbo_cage = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_cage)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, sommets_cage, GL.GL_STATIC_DRAW)
+        vboi_cage = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_cage)
+        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_cage, GL.GL_STATIC_DRAW)
+        
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(0))
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(3 * sizeof(c_float)))
+        GL.glEnableVertexAttribArray(2)
+        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
+        GL.glEnableVertexAttribArray(3)
+        GL.glVertexAttribPointer(3, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(9 * sizeof(c_float)))
+
+        # --- Variables d'état ---
+        self.angle_y = 0.0
+        self.angle_x = 0.0
+        self.trans_x = 0.0
+        self.trans_y = 0.0
+        self.trans_z = -5.0 # Reculé un peu plus pour voir toute la hauteur (3.0)
+
         # 1. Maillage du ballon
         donnees_sphere = Game.generate_sphere(radius=1.0, lat_segments=16, lon_segments=32)
         sommets_sphere = donnees_sphere['interlaced']
@@ -338,7 +375,23 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_ballon)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
+          
+            # Affichage de la cage
+            GL.glBindVertexArray(self.vao_cage)
             
+            # 1. On translate la cage au fond du terrain (Z = -12.0)
+            # Et on la pose sur le sol (Y = -1.2 pour correspondre à votre sol_y)
+            pos_cage = np.array([0.0, -1.2, -12.0], dtype=np.float32)
+            model_cage = pyrr.matrix44.create_from_translation(pos_cage)
+            
+            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
+            
+            # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
+            
+            # 3. On dessine (avec c_void_p(0) pour éviter les bugs liés à None)
+            from ctypes import c_void_p
+            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
             # Affichage de la flèche
             if self.game_state == "VISER":
                 GL.glBindVertexArray(self.vao_fleche)
