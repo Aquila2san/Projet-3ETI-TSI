@@ -333,13 +333,23 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_ballon)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
-            
+          
             # Affichage de la cage
             GL.glBindVertexArray(self.vao_cage)
-            model_cage = pyrr.matrix44.create_identity()
-            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
-            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, None)
             
+            # 1. On translate la cage au fond du terrain (Z = -12.0)
+            # Et on la pose sur le sol (Y = -1.2 pour correspondre à votre sol_y)
+            pos_cage = np.array([0.0, -1.2, -12.0], dtype=np.float32)
+            model_cage = pyrr.matrix44.create_from_translation(pos_cage)
+            
+            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
+            
+            # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
+            
+            # 3. On dessine (avec c_void_p(0) pour éviter les bugs liés à None)
+            from ctypes import c_void_p
+            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
             # Affichage de la flèche
             if self.game_state == "VISER":
                 GL.glBindVertexArray(self.vao_fleche)
