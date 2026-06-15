@@ -6,7 +6,6 @@ def create_ultra_dense_ballon(filename="ballon_texture.png", size=1024):
     image = Image.new("RGBA", (size, size), (255, 255, 255, 255))
     draw = ImageDraw.Draw(image)
     
-    # Très haute densité de motifs pour s'adapter au petit ballon
     rows = 4
     cols = 8
     dx = size / cols
