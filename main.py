@@ -296,6 +296,11 @@ class Game(object):
         self.texture_blanche = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\xff\xff\xff\xff')
+        
+        self.texture_noire = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire)
+        # b'\x00\x00\x00\xff' crée un pixel Noir (R=0, G=0, B=0) et opaque (A=255)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
     def load_texture(filename):
         if not os.path.exists(filename):
@@ -507,13 +512,10 @@ class Game(object):
                 GL.glBindVertexArray(self.vao_fleche)
                 
                 rot_arrow = pyrr.matrix44.create_from_y_rotation(self.aim_angle_Y)
-                # Positionnement au centre du ballon d'origine
                 trans_ball_origin = pyrr.matrix44.create_from_translation(self.pos)
-                
-                # Multiplication : Pivote à l'origine locale puis se positionne au ballon
                 model_arrow = pyrr.matrix44.multiply(rot_arrow, trans_ball_origin)
-                
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_arrow)
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
 
             # --- GESTION ET AFFICHAGE DE LA JAUGE (HUD) ---
