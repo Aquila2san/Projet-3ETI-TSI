@@ -473,8 +473,6 @@ class Game(object):
                     self.velocity[0] *= 0.98                   # Friction au sol
                     self.velocity[2] *= 0.98
 
-                import random # (À rajouter tout en haut de votre fichier si pas déjà fait)
-
                 # --- DETECTION DE COLLISION AVEC LE BUT ET OBSTACLES ---
                 cage_z = -32.9
                 # Le ballon franchit la ligne ET on est en train de tirer
