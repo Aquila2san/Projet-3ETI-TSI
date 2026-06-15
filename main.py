@@ -22,7 +22,7 @@ class Game(object):
         self.initial_ball_pos = np.array([0.0, -1.2 + self.radius, -9.0], dtype=np.float32)
         self.pos = np.copy(self.initial_ball_pos)
         
-        # Variables de visée (Oscillation de l'angle)
+        # Variables de visée (Oscillation de la direction de la flèche)
         self.aim_angle_Y = 0.0      # Angle actuel de la flèche de visée
         self.aim_speed = 2.5        # Vitesse d'oscillation de la visée
         self.angle_Y = 0.0          # Angle final verrouillé pour la rotation du ballon
@@ -70,7 +70,7 @@ class Game(object):
         GL.glEnable(GL.GL_DEPTH_TEST)
         
     def compile_shader(shader_content, shader_type): 
-        # compilation d'un shader donn´e selon son type 
+        # compilation d'un shader donné selon son type 
         shader_id = GL.glCreateShader(shader_type) 
         GL.glShaderSource(shader_id, shader_content) 
         GL.glCompileShader(shader_id) 
@@ -99,7 +99,7 @@ class Game(object):
             return program_id 
     
     def create_program_from_file(vs_file, fs_file): 
-        # cr´eation d'un programme GPU `a partir de fichiers 
+        # creation d'un programme GPU à partir de fichiers 
         vs_content = open(vs_file, 'r').read() if os.path.exists(vs_file)\
             else print(f'{25*"-"}\nError reading file:\n{vs_file}\n{25*"-"}') 
         fs_content = open(fs_file, 'r').read() if os.path.exists(fs_file)\
@@ -115,35 +115,34 @@ class Game(object):
 
         stride = 11 * sizeof(c_float)
 
-        # --- Cage de foot : Poteaux Blancs + Filet Transparent ---
-        # Format: [x, y, z, nx, ny, nz, r, g, b, u, v]
+        # Cage de foot : Poteaux Blancs + Filet Transparent
         sommets_cage = np.array([
-            # --- POTEAU GAUCHE (Blanc opaque, pas de texture) ---
+            # POTEAU GAUCHE (Blanc opaque, pas de texture)
             -7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 0 : Bas Gauche
             -7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 1 : Haut Gauche
             -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 2 : Haut Droit
             -7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 3 : Bas Droit
 
-            # --- POTEAU DROIT (Blanc opaque, pas de texture) ---
+            # POTEAU DROIT
              7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 4 : Bas Gauche
              7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 5 : Haut Gauche
              7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 6 : Haut Droit
              7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 7 : Bas Droite
 
-            # --- BARRE TRANSVERSALE (Blanc opaque, pas de texture) ---
+            # BARRE TRANSVERSALE
             -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 8 : Bas Gauche
             -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 9 : Haut Gauche
              7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 10: Haut Droit
              7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 11: Bas Droit
 
-            # --- LE FILET CENTRAL (Texturé avec filet.png) ---
+            # LA ZONE CENTRALE (Texturé avec filet.png) 
             -7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 12: Bas Gauche
             -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,3.0, # 13: Haut Gauche
              7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  8.0,0.0, # 14: Bas Droit
              7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  8.0,3.0  # 15: Haut Droit
         ], dtype=np.float32)
 
-        # Triangles : 2 pour le poteau G, 2 pour le poteau D, 2 pour la barre, 2 pour le filet
+        # Triangles : 2 par poteau, 2 pour la barre, 2 pour le filet 
         index_cage = np.array([
             0, 1, 2,   0, 2, 3,     # Poteau Gauche
             4, 5, 6,   4, 6, 7,     # Poteau Droit
@@ -198,7 +197,7 @@ class Game(object):
         GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_sphere, GL.GL_STATIC_DRAW)
 
         # Maillage de la flèche
-        donnees_fleche = Game.generate_arrow_mesh()
+        donnees_fleche = Game.generate_arrow()
         sommets_fleche = donnees_fleche['interlaced']
         index_fleche = donnees_fleche['faces']
         self.nb_indices_fleche = index_fleche.size
@@ -223,7 +222,7 @@ class Game(object):
         GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_fleche, GL.GL_STATIC_DRAW)
 
         # Maillage du sol
-        donnees_sol = Game.generate_floor_mesh()
+        donnees_sol = Game.generate_floor()
         sommets_sol = donnees_sol['interlaced']
         index_sol = donnees_sol['faces']
         self.nb_indices_sol = index_sol.size
@@ -247,7 +246,7 @@ class Game(object):
         GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_sol)
         GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_sol, GL.GL_STATIC_DRAW)
 
-        # Le triangle noir (Fond fixe sur la droite de l'écran)
+        # Le triangle noir de la jauge (Fond fixe sur la droite de l'écran)
         sommets_jauge_noire = np.array([
             # X, Y, Z,        Nx, Ny, Nz,   R, G, B,     U, V
             0.80, -0.6, 0.0,  0.0,0.0,1.0,  0.0,0.0,0.0, 0.0,0.0, # Bas gauche
@@ -255,7 +254,7 @@ class Game(object):
             0.875, 0.6, 0.0,  0.0,0.0,1.0,  0.0,0.0,0.0, 0.0,0.0  # Haut centre
         ], dtype=np.float32)
 
-        # Le triangle rouge (Construit autour de l'origine locale pour pouvoir l'étirer vers le haut)
+        # Le triangle rouge (Affiché sur le noir lors du tir)
         sommets_jauge_rouge = np.array([
             -0.06,  0.00, 0.0,  0.0,0.0,1.0,  1.0,0.0,0.0, 0.0,0.0, # Bas gauche
              0.06,  0.00, 0.0,  0.0,0.0,1.0,  1.0,0.0,0.0, 0.0,0.0, # Bas droite
@@ -284,7 +283,7 @@ class Game(object):
         GL.glEnableVertexAttribArray(2) # Pointeur de couleur
         GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
 
-        # Variable de puissance
+        # Variable de puissance de tir
         self.power = 0.0
 
         # Chargement des textures
@@ -295,15 +294,15 @@ class Game(object):
 
         self.texture_blanche = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
-        # b'\xff\xff\xff\xff' crée un pixel BLANC et opaque (A=255)
+        # Création d'un pixel blanc et opaque
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\xff\xff\xff\xff')
         
         self.texture_noire = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire)
-        # b'\x00\x00\x00\xff' crée un pixel Noir et opaque (A=255)
+        # Création d'un pixel Noir et opaque
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
-        # --- Modèle de l'obstacle (Un carré noir) ---
+        # Modèle d'obstacle (Un carré noir)
         sommets_obstacle = np.array([
             # X, Y, Z,       Nx, Ny, Nz,   R, G, B,       U, V
             -0.7, -0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 0.0, 0.0,
@@ -330,7 +329,7 @@ class Game(object):
 
         # Variables du jeu
         self.score = 0
-        self.obstacles = [] # Liste qui contiendra des dictionnaires {'x': ..., 'y': ...}
+        self.obstacles = [] # Liste qui contiendra les obstacles
 
     def load_texture(filename):
         if not os.path.exists(filename):
@@ -348,7 +347,7 @@ class Game(object):
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, im.width, im.height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, im.tobytes())
         return texture_id
 
-    def generate_sphere(radius=1, lat_segments=16, lon_segments=32):
+    def generate_sphere(radius=1, lat_segments=16, lon_segments=32): # Fonction de création du ballon
         vertices = []
         indices = []
         
@@ -356,7 +355,6 @@ class Game(object):
             theta = np.pi * i / lat_segments
             sin_theta = np.sin(theta)
             cos_theta = np.cos(theta)
-            
             for j in range(lon_segments + 1):
                 phi = 2 * np.pi * j / lon_segments
                 sin_phi = np.sin(phi)
@@ -396,8 +394,8 @@ class Game(object):
             'faces': np.array(indices, dtype=np.uint32) # Forcé en uint32 pour correspondre à notre pipeline
         }
 
-    def generate_arrow_mesh():
-        """ Maillage de flèche horizontale ajusté pour le ballon de rayon 0.4 """
+    def generate_arrow():
+        # Maillage de flèche horizontale ajusté pour le ballon
         vertices = [
             [-0.1, -0.38, -0.6,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0], 
             [ 0.1, -0.38, -0.6,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0], 
@@ -411,9 +409,8 @@ class Game(object):
         indices = [0, 1, 2,  0, 2, 3,  4, 5, 6]
         return {'interlaced': np.array(vertices, dtype=np.float32), 'faces': np.array(indices, dtype=np.uint32)}
     
-    def generate_floor_mesh():
-        """ Grand plan horizontal à Y = -1.2 pour accueillir le terrain """
-        # Couvre une large zone pour le fond du décor (X de -20 à 20, Z de +5 à -35)
+    def generate_floor():
+        # Grand plan horizontal pour accueillir le sol (ou terrain)
         vertices = [
             [-25.0, -1.2,   5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0],
             [ 25.0, -1.2,   5.0,  0.0, 1.0, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0],
@@ -424,18 +421,17 @@ class Game(object):
         return {'interlaced': np.array(vertices, dtype=np.float32), 'faces': np.array(indices, dtype=np.uint32)}
 
     def run(self):
-        last_time = glfw.get_time()
+        last_time = glfw.get_time() # Variable de gestion du temps
         # boucle d'affichage
         while not glfw.window_should_close(self.window):
             current_time = glfw.get_time()
             dt = current_time - last_time
             last_time = current_time
             dt = min(dt, 0.1)
-            # --- GESTION DE LA COULEUR DE FOND ---
+            # Gestion de la couleur de fond
             if self.game_state == "BUT":
                 # Effet clignotant pendant le but !
-                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RGB
-                r = (np.sin(current_time * 15.0) + 1.0) / 2.0
+                r = (np.sin(current_time * 15.0) + 1.0) / 2.0         # Utilisation des sinus pour mélanger les couleurs RGB
                 g = (np.sin(current_time * 20.0 + 2.0) + 1.0) / 2.0
                 b = (np.sin(current_time * 25.0 + 4.0) + 1.0) / 2.0
                 GL.glClearColor(r, g, b, 1.0)
@@ -451,7 +447,7 @@ class Game(object):
             loc_view = GL.glGetUniformLocation(prog, "view")
             loc_proj = GL.glGetUniformLocation(prog, "projection")
             
-            # Etat VISER ou TIR
+            # Etat VISER ou TIR ou BUT
             if self.game_state == "VISER":
                 # Oscillation automatique de la flèche entre -45° et +45° devant le ballon
                 self.aim_angle_Y = np.sin(current_time * self.aim_speed) * (np.pi / 4.0)
@@ -459,7 +455,7 @@ class Game(object):
                 self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32)
                 
             elif self.game_state == "TIR":
-                # Application de la gravité et mise à jour physique (Schéma d'Euler)
+                # Application de la gravité et mise à jour physique
                 self.velocity += self.gravity * dt
                 self.pos += self.velocity * dt
                 
@@ -471,43 +467,42 @@ class Game(object):
                     self.velocity[0] *= 0.98                   # Friction au sol
                     self.velocity[2] *= 0.98
 
-                # --- DETECTION DE COLLISION AVEC LE BUT ET OBSTACLES ---
+                # Gestion des collisions avec la cage et les obstacles
                 cage_z = -32.9
-                # Le ballon franchit la ligne ET on est en train de tirer
                 if self.pos[2] - self.radius <= cage_z and self.game_state == "TIR":
                     
-                    # 1. Vérifier si on est dans le cadre du but
+                    # Vérifier si on est dans le but
                     dans_le_cadre = (-7.32 <= self.pos[0] <= 7.32) and (-1.2 <= self.pos[1] <= 3.68)
                     
-                    # 2. Vérifier si on tape un obstacle
+                    # Vérification collision avec un obstacle
                     touche_obstacle = False
                     for obs in self.obstacles:
-                        # Notre obstacle fait 1x1, donc on vérifie s'il est à +/- 0.5 de son centre
+                        # Notre obstacle fait 1.4x1.4, donc on vérifie s'il est à +/- 0.7 de son centre
                         # (On rajoute self.radius pour que le bord du ballon compte comme un impact)
-                        if (obs['x'] - 0.5 - self.radius <= self.pos[0] <= obs['x'] + 0.5 + self.radius) and \
-                           (obs['y'] - 0.5 - self.radius <= self.pos[1] <= obs['y'] + 0.5 + self.radius):
+                        if (obs['x'] - 0.7 - self.radius <= self.pos[0] <= obs['x'] + 0.7 + self.radius) and \
+                           (obs['y'] - 0.7 - self.radius <= self.pos[1] <= obs['y'] + 0.7 + self.radius):
                             touche_obstacle = True
-                            break # On a touché, pas besoin de vérifier les autres
+                            break 
                     
-                    # 3. Résultat du tir
+                    # Résultat du tir
                     if dans_le_cadre and not touche_obstacle:
                         self.score += 1
                         print(f"BUUUUUUT !!! Score : {self.score}")
                         self.game_state = "BUT"
                         self.chrono_but = current_time
                         
-                        # Création d'un nouvel obstacle aléatoire dans la cage
+                        # Création d'un nouvel obstacle aléatoire dans la cage si but
                         nouvel_obs_x = random.uniform(-6.5, 6.5)
                         nouvel_obs_y = random.uniform(-0.5, 3.0)
                         self.obstacles.append({'x': nouvel_obs_x, 'y': nouvel_obs_y})
                     else:
                         print("RATÉ ! Obstacle ou Hors du but...")
-                        self.game_state = "VISER" # Retour au début"
+                        self.game_state = "VISER" # Retour au début
            
             elif self.game_state == "BUT":
-                # Le ballon est figé dans le but. On attend 2 secondes.
+                # Le ballon est figé dans le but pendant 2 sec
                 if current_time - self.chrono_but > 2.0:
-                    # Après 2 secondes, on réinitialise pour le prochain tir
+                    # On retourne au début
                     self.game_state = "VISER"
                    
                     
@@ -520,7 +515,7 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, proj_matrix)
             GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, view_matrix)
             
-            # On s'assure que le Blending est DÉSACTIVÉ pour les objets opaques
+            # On s'assure que le Blending est désactivé pour les objets opaques
             GL.glDisable(GL.GL_BLEND)
 
             # Rendu du terrain
@@ -530,24 +525,23 @@ class Game(object):
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id3)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_sol, GL.GL_UNSIGNED_INT, None)
             
-            # Rendu du ballon (Rotation dynamique selon la direction)
+            # Rendu du ballon (Bonus: Rotation dynamique selon la direction)
             GL.glBindVertexArray(self.vao_ballon)
             
             if self.game_state == "TIR":
-                # On récupère la direction horizontale du déplacement (axes X et Z)
+                # On récupère la direction horizontale du déplacement
                 dir_x = self.velocity[0]
                 dir_z = self.velocity[2]
                 norme_horizontale = np.sqrt(dir_x**2 + dir_z**2)
                 
                 if norme_horizontale > 0.001:
-                    # Calcul de l'axe perpendiculaire au déplacement (Produit vectoriel)
-                    # Si le ballon va vers l'avant (-Z), l'axe sera l'axe X (1, 0, 0)
+                    # Calcul de l'axe perpendiculaire au déplacement
                     axe = np.cross(np.array([dir_x, 0.0, dir_z]), np.array([0.0, 1.0, 0.0]))
                     # Normalisation de l'axe
                     if np.linalg.norm(axe) > 0.001:
                         axe = axe / np.linalg.norm(axe)
                     
-                    # Plus le ballon va vite, plus il tourne vite sur lui-même
+                    # Plus le ballon va vite, plus il tourne vite sur lui-même (effet de réalisme)
                     angle_rotation = current_time * (self.current_shot_force * 0.5)
                     
                     # Création de la matrice de rotation autour de cet axe
@@ -555,7 +549,7 @@ class Game(object):
                 else:
                     rot_ballon = pyrr.matrix44.create_identity(dtype=np.float32)
             else:
-                # Au repos (phase VISER ou CHARGER), le ballon ne tourne pas
+                # Sinon le ballon ne tourne pas
                 rot_ballon = pyrr.matrix44.create_identity(dtype=np.float32)
             trans_ballon = pyrr.matrix44.create_from_translation(self.pos)
             model_ballon = pyrr.matrix44.multiply(rot_ballon, trans_ballon)
@@ -564,17 +558,16 @@ class Game(object):
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
 
-            # --- Affichage des Obstacles ---
+            # Affichage des Obstacles
             if len(self.obstacles) > 0:
                 GL.glBindVertexArray(self.vao_obstacle)
                 GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche) # Utilise le pixel blanc opaque
                 
                 for obs in self.obstacles:
-                    # On place l'obstacle à (X, Y) et on le met juste un tout petit peu devant 
-                    # le filet (cage_z + 0.1) pour éviter un bug visuel où ils se mélangent (Z-Fighting)
+                    # On place l'obstacle à (X, Y) et on le met juste un tout petit peu devant le but (cage_z + 0.1)
                     pos_obs = np.array([obs['x'], obs['y'], -32.8], dtype=np.float32)
                     model_obs = pyrr.matrix44.create_from_translation(pos_obs)
-                    
+
                     GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_obs)
                     GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_obstacle, GL.GL_UNSIGNED_INT, c_void_p(0))
             
@@ -589,7 +582,7 @@ class Game(object):
                 GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
           
-            # ON ACTIVE LE BLENDING UNIQUEMENT POUR LA CAGE ET LE FILET
+            # On active le blending pour la cage
             GL.glEnable(GL.GL_BLEND)
 
             # Rendu de la cage
@@ -601,11 +594,11 @@ class Game(object):
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id4)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
             
-            # On coupe le blending après la cage pour ne pas perturber le HUD
+            # On coupe le blending après la cage
             GL.glDisable(GL.GL_BLEND)
 
-            # Jauge HUD
-            if self.game_state == "CHARGER" or True: # Modifié pour toujours laisser le fond noir visible si besoin
+            # Jauge
+            if self.game_state == "CHARGER" or True: # Modifié pour toujours laisser le fond noir visible éventuelement
                 GL.glDisable(GL.GL_DEPTH_TEST)
                 mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
                 GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
@@ -618,9 +611,9 @@ class Game(object):
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
                 
                 if self.game_state == "CHARGER":
-                    self.power += dt * 1.5
+                    self.power+= dt * 1.5
                     if self.power > 1.0:
-                        self.power = 1.0
+                        self.power=1.0
                     
                     GL.glBindVertexArray(self.vao_jauge_rouge)
                     trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
@@ -636,9 +629,6 @@ class Game(object):
             glfw.poll_events()
             
                 
-                
-             
-    
     def key_callback(self, win, key, scancode, action, mods):
         # Appui sur ESPACE : Verrouille la cible et commence à charger la jauge
         if key == glfw.KEY_SPACE:
@@ -651,29 +641,27 @@ class Game(object):
             elif action == glfw.RELEASE and self.game_state == "CHARGER":
                 self.game_state = "TIR"
                 
-                # Le tir dépend maintenant de la jauge (entre 5.0 et 25.0 de puissance par exemple)
+                # Le tir dépend de la jauge 
                 actual_force = 5.0 + (self.power * 25.0) 
                 self.current_shot_force = actual_force
                 
                 dir_x = np.sin(self.angle_Y)
                 dir_z = -np.cos(self.angle_Y)
-
-                dir_y = 0.1  # Donne une impulsion vers le haut pour créer une trajectoire en cloche (lob)
+                dir_y = 0.1  # Donne un angle vers le haut pour créer une trajectoire en cloche
                 dir_y = 0.6  
-
-                
                 launch_vector = np.array([dir_x, dir_y, dir_z], dtype=np.float32)
                 launch_vector = launch_vector / np.linalg.norm(launch_vector)
-                
                 self.velocity = launch_vector * actual_force
                 
             elif action == glfw.PRESS and self.game_state == "TIR":
-                self.game_state = "VISER"
+                self.game_state = "VISER" # On réinitialise au début si on rappuie pendant le tir
 
-def main():
+#Fonction générale du jeu
+def main(): 
     g = Game()
     g.run()
     glfw.terminate()
 
+#Programme principal
 if __name__ == '__main__':
     main()
