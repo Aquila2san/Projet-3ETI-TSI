@@ -13,11 +13,11 @@ L'objectif est d'implémenter :
 ---
 
 ## 2. Architecture Globale de l'Application
-L'application est structurée selon une architecture événementielle et une machine à états finis, découpée en trois phases distinctes :
+L'application est structurée est découpée en trois phases distinctes :
 
 1. **Initialisation (`__init__` & `init_data`) :** Configuration de la fenêtre graphique, activation des fonctionnalités OpenGL (test de profondeur, mélange alpha), compilation des shaders, génération des structures de données de sommets (VBO/VAO) et chargement des textures en mémoire GPU.
 2. **Boucle de rendu (`run`) :** Calcul du temps de boucle ($dt$), exécution des équations de mouvements physiques, gestion des collisions, mise à jour des matrices de transformation et émission des requêtes de dessin (`glDrawElements`, `glDrawArrays`).
-3. **Gestion des événements (`key_callback`) :** Interception des actions clavier pour piloter la machine à états du jeu : `VISER` $\rightarrow$ `CHARGER` $\rightarrow$ `TIR`.
+3. **Gestion des événements (`key_callback`) :** Interception des actions clavier pour piloter les états du jeu : `VISER` $\rightarrow$ `CHARGER` $\rightarrow$ `TIR`.
 
 ---
 
@@ -33,21 +33,21 @@ Afin d'obtenir des proportions cohérentes et de respecter les contraintes de pe
 
 
 ### 3.2. Structuration géométrique de la cage de but
-Le maillage (`sommets_cage`) a été subdivisé en 4 sous-entités géométriques distinctes partageant un unique VAO. Les coordonnées locales ont été définies pour refléter des dimensions réalistes (Largeur : $10.0$ unités, Hauteur : $3.5$ unités) :
+Le maillage (`sommets_cage`) a été divisé en 4 entités géométriques distinctes partageant un unique VAO. Les coordonnées locales ont été définies pour refléter des dimensions réalistes (Largeur : $10.0$ unités, Hauteur : $3.5$ unités) :
 
 | Sous-entité | Plage X (Largeur locale) | Plage Y (Hauteur locale) | Propriété visuelle |
 | :--- | :--- | :--- | :--- |
 | **Poteau Gauche** | $[-7.32, -7.02]$ | $[0.0, 3.5]$ | Couleur blanche opaque (sans texture) |
 | **Poteau Droit** | $[7.02, 7.32]$ | $[0.0, 3.5]$ | Couleur blanche opaque (sans texture) |
 | **Barre Transversale** | $[-7.02, 7.02]$ | $[4.58, 4.88]$ | Couleur blanche opaque (sans texture) |
-| **Filet Central** | $[-7.02, 7.02]$ | $[0.0, 4.58]$ | Texture `filet.png` + coordonnées UV |
+| **Filet Central** | $[-7.02, 7.02]$ | $[0.0, 4.58]$ | Texture `filet.png`|
 
-Cette dissociation géométrique stricte permet d'isoler des boîtes de collision (Bounding Boxes) : tout impact du ballon dans les coordonnées des poteaux ou de la barre déclenchera un rebond élastique, tandis qu'un impact dans la zone du filet central validera le but.
+Cette dissociation géométrique stricte permet d'isoler des boîtes de collision (Bounding Boxes) : un impact dans la zone du filet central validera le but.
 
 ### 3.3. Modélisation géométrique des obstacles dynamiques
-Afin d'ajouter une contrainte de jeu, des obstacles plans de forme carrée et de couleur noire opaque ont été introduits dans l'embrasure de la cage de but. Chaque obstacle est généré à partir d'un maillage bidimensionnel local de dimensions $1.4 \times 1.4$ unités (coordonnées locales de $-0.7$ à $+0.7$) :
+Afin d'ajouter une contrainte de jeu, des obstacles plans de forme carrée et de couleur noire opaque ont été introduits dans l'embrasure de la cage de but. Chaque obstacle est généré à partir d'un maillage local de dimensions $1.4 \times 1.4$ unités (coordonnées locales de $-0.7$ à $+0.7$) :
 
-Les sommets reçoivent une couleur noire fixe injectée dans le flux de données (`R,G,B = 0.0, 0.0, 0.0`) et pointent vers une texture unie blanche opaque (`self.texture_blanche`) pour garantir un rendu mat et homogène. Pour éviter les conflits d'interpénétration visuelle avec le filet arrière (*Z-fighting*), chaque obstacle est positionné sur l'axe de profondeur à $Z = -32.8$, soit exactement $10\text{ cm}$ en avant du filet ($Z = -32.9$).
+Les sommets reçoivent une couleur noire fixe injectée dans le flux de données (`R,G,B = 0.0, 0.0, 0.0`) et pointent vers une texture unie blanche opaque (`self.texture_blanche`) pour garantir un rendu mat et homogène. Pour éviter les conflits d'interpénétration visuelle avec le filet, chaque obstacle est positionné sur l'axe de profondeur à $Z = -32.8$, soit exactement $10\text{ cm}$ en avant du filet ($Z = -32.9$).
 
 ---
 
@@ -91,7 +91,7 @@ Après normalisation de l'axe $\vec{a}$, la matrice de rotation correspondante (
 ### 4.4. Algorithme de détection de collision Ballon-Obstacle
 La détection d'impact entre le ballon (modélisé par une sphère mobile) et les obstacles (modélisés par des carrés de $1.0 \times 1.0$ unité en coordonnées physiques) est exécutée à chaque frame dans l'état `TIR` dès que le ballon franchit le plan de but à $Z \le -32.9$.
 
-L'algorithme implémente une vérification par boîte de collision englobante (*AABB - Axis-Aligned Bounding Box*). Le rayon du ballon ($R = 0.4$) est additionné à la demi-largeur de l'obstacle ($0.5$) pour simuler un contact physique dès que la périphérie de la sphère intercepte le carré :
+L'algorithme implémente une vérification par boîte de collision englobante. Le rayon du ballon ($R = 0.4$) est additionné à la demi-largeur de l'obstacle ($0.5$) pour simuler un contact physique dès que la périphérie de la sphère intercepte le carré :
 
 L'encadrement mathématique pour valider une collision avec un obstacle donné est défini par le système d'inéquations suivant :
 
@@ -119,15 +119,15 @@ Ce mécanisme augmente progressivement la difficulté du jeu après chaque but m
 ## 5. Pipeline Graphique, Gestion des Shaders et Matrice de Textures
 
 ### 5.1. Modèle d'illumination et gestion de l'ombre globale
-Le rendu s'appuie sur le modèle d'éclairage local de **Phong**, implémenté de manière fragmentaire (*Per-Fragment Lighting*). 
+Le rendu s'appuie sur le modèle d'éclairage local de **Phong**.
 
-Pour corriger le problème initial où l'ensemble de la scène se situait dans la pénombre, la source de lumière a été retirée du premier plan et repositionnée en position zénithale à des coordonnées simulant un projecteur de stade : $\text{LightPos} = (0.0, 10.0, -5.0)$. La composante ambiante du shader a été rehaussée à `0.4` pour assurer une bonne visibilité des faces sombres.
+Pour corriger le problème initial où l'ensemble de la scène se situait dans la pénombre, la source de lumière a été retirée du premier plan et repositionnée en haut à des coordonnées simulant un projecteur de stade : $\text{LightPos} = (0.0, 10.0, -5.0)$. La composante ambiante du shader a été rehaussée à `0.4` pour assurer une bonne visibilité des faces sombres.
 
 
 ### 5.2. Gestion sélective de la transparence (Blending)
-L'intégration d'un filet de but réaliste nécessite l'utilisation d'une texture comportant un canal de transparence (`filet.png` au format RGBA). L'activation globale du mélange alpha (`GL_BLEND`) provoquait des artefacts visuels sur le ballon.
+L'intégration d'un filet de but réaliste nécessite l'utilisation d'une texture comportant un canal de transparence (`filet.png`). L'activation globale du mélange alpha (`GL_BLEND`) provoquait des soucis visuels.
 
-Pour résoudre ce conflit, le pipeline applique une activation sélective du Blending au cours de la boucle d'affichage :
+Pour résoudre ce problème, le pipeline applique une activation sélective du Blending au cours de la boucle d'affichage :
 1. `glDisable(GL_BLEND)` est appelé avant le dessin du terrain, de la flèche, des obstacles et du ballon (objets opaques).
 2. `glEnable(GL_BLEND)` est activé spécifiquement avant le dessin de la cage, avec `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`. Les mailles du filet se dessinent en blanc, tandis que les pixels transparents laissent voir l'arrière-plan.
 
@@ -136,11 +136,11 @@ Pour résoudre ce conflit, le pipeline applique une activation sélective du Ble
 ![alt text](image-5.png)
 
 ### 5.3. Rendu de l'interface utilisateur (HUD)
-L'affichage de la jauge de puissance nécessite de s'affranchir des transformations de la caméra 3D. Avant le dessin des triangles de la jauge (VAO noir et rouge), le test de profondeur est désactivé (`glDisable(GL_DEPTH_TEST)`). Les matrices de projection et de vue sont écrasées par des matrices d'identité. Les sommets de la jauge sont ainsi directement spécifiés en coordonnées normalisées d'écran (NDC), garantissant leur fixité au premier plan.
+L'affichage de la jauge de puissance nécessite de s'affranchir des transformations de la caméra 3D. Avant le dessin des triangles de la jauge (VAO noir et rouge), le test de profondeur est désactivé (`glDisable(GL_DEPTH_TEST)`). Les matrices de projection et de vue sont écrasées par des matrices d'identité. Les sommets de la jauge sont ainsi directement spécifiés en coordonnées normalisées, garantissant qu'ils soient fixes au premier plan.
 
 ---
 
 ## 6. Conclusion et Perspectives
-Ce projet a permis de concrétiser les concepts fondamentaux du pipeline programmable d'OpenGL. La structuration rigoureuse de la scène et la maîtrise des matrices de transformation ont donné une application de simulation physique fluide, évolutive et interactive.
+Ce projet a permis de concrétiser les concepts fondamentaux du pipeline programmable d'OpenGL. La structuration rigoureuse de la scène et la maîtrise des matrices de transformation ont donné une application de simulation physique fluide, interactiven et qui évolue au fil du temps.
 
 Les perspectives futures incluent l'ajout d'un calcul de rebond physique élaboré sur les poteaux (en combinant le maillage de la cage), ainsi que l'intégration d'un gardien de but animé par une intelligence artificielle rudimentaire pour enrichir l'expérience de jeu.
