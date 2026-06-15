@@ -28,6 +28,7 @@ class Game(object):
         self.angle_Y = 0.0          # Angle final verrouillé pour la rotation du ballon
         
         # Physique du ballon
+        self.current_shot_force = 0.0
         self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32) # Vitesse initiale
         self.gravity = np.array([0.0, -9.81, 0.0], dtype=np.float32) # Accélération g = (0, -9.81, 0)
         
@@ -131,7 +132,7 @@ class Game(object):
              7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 6 : Haut Droit
              7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 7 : Bas Droite
 
-            # --- BARRE TRANSVERSALE (CONSTRUITE AU-DESSUS DU FILET) ---
+            # --- BARRE TRANSVERSALE (Blanc opaque, pas de texture) ---
             -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 8 : Bas Gauche
             -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 9 : Haut Gauche
              7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 10: Haut Droit
@@ -289,18 +290,19 @@ class Game(object):
         self.power = 0.0
 
         # Chargement des textures
-        self.texture_id1 = Game.load_texture('texture.png')  # Ballon
+        self.texture_id1 = Game.load_texture('ballon_texture.png')  # Ballon
         self.texture_id2 = Game.load_texture('texture2.png') # Flèche
         self.texture_id3 = Game.load_texture('terrain.png')  # Pelouse / Lignes du terrain
         self.texture_id4 = Game.load_texture('filet.png')    # Filet
 
         self.texture_blanche = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
+        # b'\xff\xff\xff\xff' crée un pixel BLANC et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\xff\xff\xff\xff')
         
         self.texture_noire = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire)
-        # b'\x00\x00\x00\xff' crée un pixel Noir (R=0, G=0, B=0) et opaque (A=255)
+        # b'\x00\x00\x00\xff' crée un pixel Noir et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
         # --- Modèle de l'obstacle (Un carré de 1x1 centré) ---
@@ -338,9 +340,9 @@ class Game(object):
             return 0
         im = Image.open(filename).transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert('RGBA')
         texture_id = GL.glGenTextures(1)
-        # s´election de la texture courante `a partir de son identifiant
+        # sélection de la texture courante à partir de son identifiant
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture_id)
-        # param´etrisation de la texture
+        # paramétrisation de la texture
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -433,8 +435,8 @@ class Game(object):
             dt = min(dt, 0.1)
             # --- GESTION DE LA COULEUR DE FOND ---
             if self.game_state == "BUT":
-                # Effet "Disco" clignotant pendant le but !
-                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RVB
+                # Effet clignotant pendant le but !
+                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RGB
                 r = (np.sin(current_time * 15.0) + 1.0) / 2.0
                 g = (np.sin(current_time * 20.0 + 2.0) + 1.0) / 2.0
                 b = (np.sin(current_time * 25.0 + 4.0) + 1.0) / 2.0
@@ -522,16 +524,46 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, proj_matrix)
             GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, view_matrix)
             
-            # Affichage du terrain 
+            # On s'assure que le Blending est DÉSACTIVÉ pour les objets opaques
+            GL.glDisable(GL.GL_BLEND)
+
+            # Rendu du terrain
             GL.glBindVertexArray(self.vao_sol)
             model_sol = pyrr.matrix44.create_from_translation(np.array([0.0, 0.0, 0.0], dtype=np.float32))
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_sol)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id3)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_sol, GL.GL_UNSIGNED_INT, None)
             
-            # Affichage du ballon
+            # Rendu du ballon (Rotation dynamique selon la direction)
             GL.glBindVertexArray(self.vao_ballon)
-            model_ballon = pyrr.matrix44.create_from_translation(self.pos)
+            
+            if self.game_state == "TIR":
+                # On récupère la direction horizontale du déplacement (axes X et Z)
+                dir_x = self.velocity[0]
+                dir_z = self.velocity[2]
+                norme_horizontale = np.sqrt(dir_x**2 + dir_z**2)
+                
+                if norme_horizontale > 0.001:
+                    # Calcul de l'axe perpendiculaire au déplacement (Produit vectoriel)
+                    # Si le ballon va vers l'avant (-Z), l'axe sera l'axe X (1, 0, 0)
+                    axe = np.cross(np.array([dir_x, 0.0, dir_z]), np.array([0.0, 1.0, 0.0]))
+                    # Normalisation de l'axe
+                    if np.linalg.norm(axe) > 0.001:
+                        axe = axe / np.linalg.norm(axe)
+                    
+                    # Plus le ballon va vite, plus il tourne vite sur lui-même
+                    angle_rotation = current_time * (self.current_shot_force * 0.5)
+                    
+                    # Création de la matrice de rotation autour de cet axe
+                    rot_ballon = pyrr.matrix44.create_from_axis_rotation(axe, angle_rotation)
+                else:
+                    rot_ballon = pyrr.matrix44.create_identity(dtype=np.float32)
+            else:
+                # Au repos (phase VISER ou CHARGER), le ballon ne tourne pas
+                rot_ballon = pyrr.matrix44.create_identity(dtype=np.float32)
+            trans_ballon = pyrr.matrix44.create_from_translation(self.pos)
+            model_ballon = pyrr.matrix44.multiply(rot_ballon, trans_ballon)
+            
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_ballon)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
@@ -563,50 +595,56 @@ class Game(object):
             # Affichage de la flèche
             if self.game_state == "VISER":
                 GL.glBindVertexArray(self.vao_fleche)
-                
                 rot_arrow = pyrr.matrix44.create_from_y_rotation(self.aim_angle_Y)
                 trans_ball_origin = pyrr.matrix44.create_from_translation(self.pos)
                 model_arrow = pyrr.matrix44.multiply(rot_arrow, trans_ball_origin)
+                
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_arrow)
                 GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
+          
+            # ON ACTIVE LE BLENDING UNIQUEMENT POUR LA CAGE ET LE FILET
+            GL.glEnable(GL.GL_BLEND)
 
-            # --- GESTION ET AFFICHAGE DE LA JAUGE (HUD) ---
-            # 1. On désactive la profondeur pour écrire "par-dessus" l'écran 3D
-            GL.glDisable(GL.GL_DEPTH_TEST)
+            # Rendu de la cage
+            GL.glBindVertexArray(self.vao_cage)
+            pos_cage = np.array([0.0, -1.2, -32.7], dtype=np.float32)
+            model_cage = pyrr.matrix44.create_from_translation(pos_cage)
+            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
             
-            # 2. On écrase la projection et la caméra avec des matrices neutres
-            mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
-            GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
-            GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id4)
+            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
             
-            # SOLUTION : On lie notre pixel blanc totalement opaque !
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
-            
-            # 3. Affichage du Triangle Noir (TOUJOURS VISIBLE)
-            GL.glBindVertexArray(self.vao_jauge_noire)
-            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, mat_identite)
-            GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
-            
-            # 4. Gestion et affichage du Triangle Rouge (UNIQUEMENT PENDANT LA CHARGE)
-            if self.game_state == "CHARGER":
-                # Mise à jour de la puissance
-                self.power += dt * 1.5 
-                if self.power > 1.0:
-                    self.power = 1.0 # Plafond maximum
+            # On coupe le blending après la cage pour ne pas perturber le HUD
+            GL.glDisable(GL.GL_BLEND)
+
+            # Jauge HUD
+            if self.game_state == "CHARGER" or True: # Modifié pour toujours laisser le fond noir visible si besoin
+                GL.glDisable(GL.GL_DEPTH_TEST)
+                mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
+                GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
+                GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
                 
-                GL.glBindVertexArray(self.vao_jauge_rouge)
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
                 
-                # Transformations via Pyrr (Mise à l'échelle locale, PUIS placement)
-                trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
-                scale_rouge = pyrr.matrix44.create_from_scale(np.array([1.0, self.power, 1.0], dtype=np.float32))
-                model_rouge = pyrr.matrix44.multiply(scale_rouge, trans_rouge)
-                
-                GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_rouge)
+                GL.glBindVertexArray(self.vao_jauge_noire)
+                GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, mat_identite)
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
                 
-            # 5. On réactive la profondeur pour la frame 3D suivante
-            GL.glEnable(GL.GL_DEPTH_TEST)
+                if self.game_state == "CHARGER":
+                    self.power += dt * 1.5
+                    if self.power > 1.0:
+                        self.power = 1.0
+                    
+                    GL.glBindVertexArray(self.vao_jauge_rouge)
+                    trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
+                    scale_rouge = pyrr.matrix44.create_from_scale(np.array([1.0, self.power, 1.0], dtype=np.float32))
+                    model_rouge = pyrr.matrix44.multiply(scale_rouge, trans_rouge)
+                    
+                    GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_rouge)
+                    GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+                
+                GL.glEnable(GL.GL_DEPTH_TEST)
 
             glfw.swap_buffers(self.window)
             glfw.poll_events()
@@ -628,7 +666,8 @@ class Game(object):
                 self.game_state = "TIR"
                 
                 # Le tir dépend maintenant de la jauge (entre 5.0 et 25.0 de puissance par exemple)
-                actual_force = 5.0 + (self.power * 20.0) 
+                actual_force = 5.0 + (self.power * 25.0) 
+                self.current_shot_force = actual_force
                 
                 dir_x = np.sin(self.angle_Y)
                 dir_z = -np.cos(self.angle_Y)
