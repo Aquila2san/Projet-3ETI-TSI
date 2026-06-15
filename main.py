@@ -63,6 +63,9 @@ class Game(object):
         # activation du context OpenGL pour la fenêtre
         glfw.make_context_current(self.window)
         glfw.swap_interval(1)
+        # activation de la transparence
+        GL.glEnable(GL.GL_BLEND)
+        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
         # activation de la gestion de la profondeur
         GL.glEnable(GL.GL_DEPTH_TEST)
         
@@ -112,16 +115,42 @@ class Game(object):
 
         stride = 11 * sizeof(c_float)
 
-        # --- Cage de foot ---
+        # --- Cage de foot : Poteaux Blancs + Filet Transparent ---
         # Format: [x, y, z, nx, ny, nz, r, g, b, u, v]
         sommets_cage = np.array([
-            -7.32, 0.0,  0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  0.0, 0.0,  # 0 : Bas Gauche
-            -7.32, 4.88, 0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  0.0, 1.0,  # 1 : Haut Gauche
-             7.32, 0.0,  0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  1.0, 0.0,  # 2 : Bas Droite
-              7.32, 4.88, 0.0,  0.0, 0.0, 1.0,  1.0, 1.0, 1.0,  1.0, 1.0   # 3 : Haut Droite
+            # --- POTEAU GAUCHE (Blanc opaque, pas de texture) ---
+            -7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 0 : Bas Gauche
+            -7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 1 : Haut Gauche
+            -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 2 : Haut Droit
+            -7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 3 : Bas Droit
+
+            # --- POTEAU DROIT (Blanc opaque, pas de texture) ---
+             7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 4 : Bas Gauche
+             7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 5 : Haut Gauche
+             7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 6 : Haut Droit
+             7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 7 : Bas Droite
+
+            # --- BARRE TRANSVERSALE (CONSTRUITE AU-DESSUS DU FILET) ---
+            -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 8 : Bas Gauche
+            -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 9 : Haut Gauche
+             7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 10: Haut Droit
+             7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 11: Bas Droit
+
+            # --- LE FILET CENTRAL (Texturé avec filet.png) ---
+            -7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 12: Bas Gauche
+            -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,3.0, # 13: Haut Gauche
+             7.02, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  8.0,0.0, # 14: Bas Droit
+             7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  8.0,3.0  # 15: Haut Droit
         ], dtype=np.float32)
-        # Indices pour former les deux triangles du rectangle
-        index_cage = np.array([0, 1, 2,  1, 2, 3], dtype=np.uint32)
+
+        # Triangles : 2 pour le poteau G, 2 pour le poteau D, 2 pour la barre, 2 pour le filet
+        index_cage = np.array([
+            0, 1, 2,   0, 2, 3,     # Poteau Gauche
+            4, 5, 6,   4, 6, 7,     # Poteau Droit
+            8, 9, 10,  8, 10, 11,   # Barre transversale
+            12, 13, 15, 12, 15, 14  # Filet central
+        ], dtype=np.uint32)
+        
         self.nb_indices_cage = index_cage.size
 
         self.vao_cage = GL.glGenVertexArrays(1)
@@ -262,6 +291,7 @@ class Game(object):
         self.texture_id1 = Game.load_texture('texture.png')  # Ballon
         self.texture_id2 = Game.load_texture('texture2.png') # Flèche
         self.texture_id3 = Game.load_texture('terrain.png')  # Pelouse / Lignes du terrain
+        self.texture_id4 = Game.load_texture('filet.png')    # Filet
 
     def load_texture(filename):
         if not os.path.exists(filename):
@@ -421,7 +451,7 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
             
             # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id2)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id4)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
             
             # Affichage de la flèche
@@ -436,7 +466,6 @@ class Game(object):
                 model_arrow = pyrr.matrix44.multiply(rot_arrow, trans_ball_origin)
                 
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_arrow)
-                GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id2) 
                 GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_fleche, GL.GL_UNSIGNED_INT, None)
             # --- GESTION ET AFFICHAGE DE LA JAUGE (HUD) ---
             if self.game_state == "CHARGER":
