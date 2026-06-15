@@ -402,8 +402,19 @@ class Game(object):
             dt = current_time - last_time
             last_time = current_time
             dt = min(dt, 0.1)
-            # Ciel bleu
-            GL.glClearColor(0.5, 0.7, 1.0, 1.0)
+            # --- GESTION DE LA COULEUR DE FOND ---
+            if self.game_state == "BUT":
+                # Effet "Disco" clignotant pendant le but !
+                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RVB
+                r = (np.sin(current_time * 15.0) + 1.0) / 2.0
+                g = (np.sin(current_time * 20.0 + 2.0) + 1.0) / 2.0
+                b = (np.sin(current_time * 25.0 + 4.0) + 1.0) / 2.0
+                GL.glClearColor(r, g, b, 1.0)
+            else:
+                # Ciel bleu normal pour le reste du jeu
+                GL.glClearColor(0.5, 0.7, 1.0, 1.0)
+                
+            # Nettoyage de l'écran avec la couleur choisie ci-dessus
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             
             prog = GL.glGetIntegerv(GL.GL_CURRENT_PROGRAM) 
@@ -430,7 +441,40 @@ class Game(object):
                     self.velocity[1] = -self.velocity[1] * 0.5 # Rebond 
                     self.velocity[0] *= 0.98                   # Friction au sol
                     self.velocity[2] *= 0.98
-            
+
+                # --- COLLISION AVEC LE BUT ---
+                # 1. On définit la zone du but (basé sur les coordonnées de votre cage)
+                cage_z = -32.9
+                cage_x_min = -7.32
+                cage_x_max = 7.32
+                cage_y_min = -1.2
+                cage_y_max = -1.2 + 4.88 # = 3.68
+
+                # 2. Le ballon a-t-il touché le fond du terrain (Z) ?
+                # On utilise self.pos[2] - self.radius pour vérifier si le bord du ballon franchit la ligne
+                if self.pos[2] - self.radius <= cage_z:
+                    
+                    # 3. Est-il dans le cadre (entre les poteaux en X, et sous la barre en Y) ?
+                    if (cage_x_min <= self.pos[0] <= cage_x_max) and (cage_y_min <= self.pos[1] <= cage_y_max):
+                        print("\n=====================")
+                        print("     BUUUUUUT !!!    ")
+                        print("=====================\n")
+                        
+                        # On change l'état pour arrêter la physique
+                        self.game_state = "BUT"
+                        self.chrono_but = current_time # On mémorise l'heure du but
+                    else:
+                        # Si on dépasse Z mais qu'on n'est pas dans le cadre, c'est une sortie de but (6 mètres)
+                        print("Sortie de but...")
+                        self.game_state = "VISER"
+           
+            elif self.game_state == "BUT":
+                # Le ballon est figé dans le but. On attend 2 secondes.
+                if current_time - self.chrono_but > 2.0:
+                    # Après 2 secondes, on réinitialise pour le prochain tir
+                    self.game_state = "VISER"
+                   
+                    
             # Configuration de la caméra
             camera_pos = np.array([0.0, 5.5, 1.0], dtype=np.float32)
             target_look = np.array([0.0, -0.2, -22.0], dtype=np.float32)
