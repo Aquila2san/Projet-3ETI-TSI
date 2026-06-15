@@ -263,6 +263,10 @@ class Game(object):
         self.texture_id2 = Game.load_texture('texture2.png') # Flèche
         self.texture_id3 = Game.load_texture('terrain.png')  # Pelouse / Lignes du terrain
 
+        self.texture_blanche = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\xff\xff\xff\xff')
+
     def load_texture(filename):
         if not os.path.exists(filename):
             print(f'{25*"-"}\nError reading file:\n{filename}\n{25*"-"}')
@@ -448,9 +452,8 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_proj, 1, GL.GL_FALSE, mat_identite)
             GL.glUniformMatrix4fv(loc_view, 1, GL.GL_FALSE, mat_identite)
             
-            # (Astuce : on lie la texture du ballon qui contient sûrement du blanc pour 
-            # éviter que le rouge ne soit effacé par une texture transparente)
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
+            # SOLUTION : On lie notre pixel blanc totalement opaque !
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
             
             # 3. Affichage du Triangle Noir (TOUJOURS VISIBLE)
             GL.glBindVertexArray(self.vao_jauge_noire)
@@ -466,10 +469,10 @@ class Game(object):
                 
                 GL.glBindVertexArray(self.vao_jauge_rouge)
                 
-                # Transformations : l'opérateur @ applique la mise à l'échelle PUIS le placement
+                # Transformations via Pyrr (Mise à l'échelle locale, PUIS placement)
                 trans_rouge = pyrr.matrix44.create_from_translation(np.array([0.875, -0.58, 0.0], dtype=np.float32))
                 scale_rouge = pyrr.matrix44.create_from_scale(np.array([1.0, self.power, 1.0], dtype=np.float32))
-                model_rouge = scale_rouge @ trans_rouge
+                model_rouge = pyrr.matrix44.multiply(scale_rouge, trans_rouge)
                 
                 GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_rouge)
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
