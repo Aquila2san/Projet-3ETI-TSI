@@ -7,6 +7,7 @@ import os
 import pyrr
 from ctypes import *
 from PIL import Image
+import random
 
 
 class Game(object):
@@ -302,6 +303,35 @@ class Game(object):
         # b'\x00\x00\x00\xff' crée un pixel Noir (R=0, G=0, B=0) et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
+        # --- Modèle de l'obstacle (Un carré de 1x1 centré) ---
+        sommets_obstacle = np.array([
+            # X, Y, Z,       Nx, Ny, Nz,   R, G, B,       U, V
+            -0.7, -0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 0.0, 0.0,
+            -0.7,  0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 0.0, 1.0,
+             0.7, -0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 1.0, 0.0,
+             0.7,  0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 1.0, 1.0
+        ], dtype=np.float32)
+        index_obstacle = np.array([0, 1, 2,  1, 2, 3], dtype=np.uint32)
+        self.nb_indices_obstacle = index_obstacle.size
+
+        self.vao_obstacle = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.vao_obstacle)
+        vbo_obs = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_obs)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, sommets_obstacle, GL.GL_STATIC_DRAW)
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(0))
+        GL.glEnableVertexAttribArray(2) # Couleur
+        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(6 * sizeof(c_float)))
+
+        vboi_obs = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, vboi_obs)
+        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, index_obstacle, GL.GL_STATIC_DRAW)
+
+        # Variables du jeu
+        self.score = 0
+        self.obstacles = [] # Liste qui contiendra des dictionnaires {'x': ..., 'y': ...}
+
     def load_texture(filename):
         if not os.path.exists(filename):
             print(f'{25*"-"}\nError reading file:\n{filename}\n{25*"-"}')
@@ -441,31 +471,40 @@ class Game(object):
                     self.velocity[0] *= 0.98                   # Friction au sol
                     self.velocity[2] *= 0.98
 
-                # --- COLLISION AVEC LE BUT ---
-                # 1. On définit la zone du but (basé sur les coordonnées de votre cage)
-                cage_z = -32.9
-                cage_x_min = -7.32
-                cage_x_max = 7.32
-                cage_y_min = -1.2
-                cage_y_max = -1.2 + 4.88 # = 3.68
+                import random # (À rajouter tout en haut de votre fichier si pas déjà fait)
 
-                # 2. Le ballon a-t-il touché le fond du terrain (Z) ?
-                # On utilise self.pos[2] - self.radius pour vérifier si le bord du ballon franchit la ligne
-                if self.pos[2] - self.radius <= cage_z:
+                # --- DETECTION DE COLLISION AVEC LE BUT ET OBSTACLES ---
+                cage_z = -32.9
+                # Le ballon franchit la ligne ET on est en train de tirer
+                if self.pos[2] - self.radius <= cage_z and self.game_state == "TIR":
                     
-                    # 3. Est-il dans le cadre (entre les poteaux en X, et sous la barre en Y) ?
-                    if (cage_x_min <= self.pos[0] <= cage_x_max) and (cage_y_min <= self.pos[1] <= cage_y_max):
-                        print("\n=====================")
-                        print("     BUUUUUUT !!!    ")
-                        print("=====================\n")
-                        
-                        # On change l'état pour arrêter la physique
+                    # 1. Vérifier si on est dans le cadre du but
+                    dans_le_cadre = (-7.32 <= self.pos[0] <= 7.32) and (-1.2 <= self.pos[1] <= 3.68)
+                    
+                    # 2. Vérifier si on tape un obstacle
+                    touche_obstacle = False
+                    for obs in self.obstacles:
+                        # Notre obstacle fait 1x1, donc on vérifie s'il est à +/- 0.5 de son centre
+                        # (On rajoute self.radius pour que le bord du ballon compte comme un impact)
+                        if (obs['x'] - 0.5 - self.radius <= self.pos[0] <= obs['x'] + 0.5 + self.radius) and \
+                           (obs['y'] - 0.5 - self.radius <= self.pos[1] <= obs['y'] + 0.5 + self.radius):
+                            touche_obstacle = True
+                            break # On a touché, pas besoin de vérifier les autres
+                    
+                    # 3. Résultat du tir
+                    if dans_le_cadre and not touche_obstacle:
+                        self.score += 1
+                        print(f"BUUUUUUT !!! Score : {self.score}")
                         self.game_state = "BUT"
-                        self.chrono_but = current_time # On mémorise l'heure du but
+                        self.chrono_but = current_time
+                        
+                        # Création d'un nouvel obstacle aléatoire dans la cage
+                        nouvel_obs_x = random.uniform(-6.5, 6.5)
+                        nouvel_obs_y = random.uniform(-0.5, 3.0)
+                        self.obstacles.append({'x': nouvel_obs_x, 'y': nouvel_obs_y})
                     else:
-                        # Si on dépasse Z mais qu'on n'est pas dans le cadre, c'est une sortie de but (6 mètres)
-                        print("Sortie de but...")
-                        self.game_state = "VISER"
+                        print("RATÉ ! Obstacle ou Hors du but...")
+                        self.game_state = "VISER" # Retour au début"
            
             elif self.game_state == "BUT":
                 # Le ballon est figé dans le but. On attend 2 secondes.
@@ -506,6 +545,20 @@ class Game(object):
             # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id4)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
+
+            # --- Affichage des Obstacles ---
+            if len(self.obstacles) > 0:
+                GL.glBindVertexArray(self.vao_obstacle)
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche) # Utilise le pixel blanc opaque
+                
+                for obs in self.obstacles:
+                    # On place l'obstacle à (X, Y) et on le met juste un tout petit peu devant 
+                    # le filet (cage_z + 0.1) pour éviter un bug visuel où ils se mélangent (Z-Fighting)
+                    pos_obs = np.array([obs['x'], obs['y'], -32.8], dtype=np.float32)
+                    model_obs = pyrr.matrix44.create_from_translation(pos_obs)
+                    
+                    GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_obs)
+                    GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_obstacle, GL.GL_UNSIGNED_INT, c_void_p(0))
             
             # Affichage de la flèche
             if self.game_state == "VISER":
