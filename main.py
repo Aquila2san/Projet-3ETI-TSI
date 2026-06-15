@@ -29,7 +29,6 @@ class Game(object):
         # Physique du ballon
         self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32) # Vitesse initiale
         self.gravity = np.array([0.0, -9.81, 0.0], dtype=np.float32) # Accélération g = (0, -9.81, 0)
-        self.shot_force = 100.0      # Puissance de propulsion du ballon
         
         # Variables d'état de translation/rotation de la scène
         self.angle_y = 0.0
@@ -497,11 +496,10 @@ class Game(object):
                 
                 dir_x = np.sin(self.angle_Y)
                 dir_z = -np.cos(self.angle_Y)
-<<<<<<< HEAD
+
                 dir_y = 0.1  # Donne une impulsion vers le haut pour créer une trajectoire en cloche (lob)
-=======
                 dir_y = 0.6  
->>>>>>> aec6cce4d275a81df58256e0b96206c9b2c6b7b4
+
                 
                 launch_vector = np.array([dir_x, dir_y, dir_z], dtype=np.float32)
                 launch_vector = launch_vector / np.linalg.norm(launch_vector)
