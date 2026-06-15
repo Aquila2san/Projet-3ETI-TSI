@@ -13,18 +13,13 @@ class Game(object):
     """ fenêtre GLFW avec openGL """
 
     def __init__(self):
-        self.window = self.init_window()
-        self.init_context()
-        self.init_programs()
-        self.init_data()
-        
         # Etat possible
         self.game_state = "VISER"
         
         # Position intiale du ballon
-        self.initial_ball_pos = np.array([0.0, -0.8, -9.0], dtype=np.float32)
-        self.pos = np.copy(self.initial_ball_pos)
         self.radius = 0.4
+        self.initial_ball_pos = np.array([0.0, -1.2 + self.radius, -9.0], dtype=np.float32)
+        self.pos = np.copy(self.initial_ball_pos)
         
         # Variables de visée (Oscillation de l'angle)
         self.aim_angle_Y = 0.0      # Angle actuel de la flèche de visée
@@ -34,9 +29,21 @@ class Game(object):
         # Physique du ballon
         self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32) # Vitesse initiale
         self.gravity = np.array([0.0, -9.81, 0.0], dtype=np.float32) # Accélération g = (0, -9.81, 0)
-        self.shot_force = 14.0      # Puissance de propulsion du ballon
         
-
+        # Variables d'état de translation/rotation de la scène
+        self.angle_y = 0.0
+        self.angle_y = 0.0
+        self.angle_x = 0.0
+        self.trans_x = 0.0
+        self.trans_y = 0.0
+        self.trans_z = -5.0
+        
+        # Appel des fonctions OpenGL qui dépendent de ces variables
+        self.window = self.init_window()
+        self.init_context()
+        self.init_programs()
+        self.init_data() 
+        
 
     def init_window(self):
         # initialisation de la librairie glfw et du context opengl associé
@@ -135,15 +142,9 @@ class Game(object):
         GL.glEnableVertexAttribArray(3)
         GL.glVertexAttribPointer(3, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, c_void_p(9 * sizeof(c_float)))
 
-        # --- Variables d'état ---
-        self.angle_y = 0.0
-        self.angle_x = 0.0
-        self.trans_x = 0.0
-        self.trans_y = 0.0
-        self.trans_z = -5.0 # Reculé un peu plus pour voir toute la hauteur (3.0)
 
-        # 1. Maillage du ballon
-        donnees_sphere = Game.generate_sphere(radius=1.0, lat_segments=16, lon_segments=32)
+        # Maillage du ballon
+        donnees_sphere = Game.generate_sphere(radius=self.radius,lat_segments=16, lon_segments=32)
         sommets_sphere = donnees_sphere['interlaced']
         index_sphere = donnees_sphere['faces']
         self.nb_indices_ballon = index_sphere.size
@@ -278,7 +279,7 @@ class Game(object):
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, im.width, im.height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, im.tobytes())
         return texture_id
 
-    def generate_sphere(radius=1.0, lat_segments=16, lon_segments=32):
+    def generate_sphere(radius=1, lat_segments=16, lon_segments=32):
         vertices = []
         indices = []
         
@@ -408,8 +409,7 @@ class Game(object):
             
             # Affichage du ballon
             GL.glBindVertexArray(self.vao_ballon)
-            model_ballon = pyrr.matrix44.create_from_translation(self.pos) # Aucune rotation liée à la visée
-            
+            model_ballon = pyrr.matrix44.create_from_translation(self.pos)
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_ballon)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
@@ -501,7 +501,10 @@ class Game(object):
                 
                 dir_x = np.sin(self.angle_Y)
                 dir_z = -np.cos(self.angle_Y)
+
+                dir_y = 0.1  # Donne une impulsion vers le haut pour créer une trajectoire en cloche (lob)
                 dir_y = 0.6  
+
                 
                 launch_vector = np.array([dir_x, dir_y, dir_z], dtype=np.float32)
                 launch_vector = launch_vector / np.linalg.norm(launch_vector)
