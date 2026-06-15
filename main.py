@@ -131,7 +131,7 @@ class Game(object):
              7.32, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 6 : Haut Droit
              7.32, 0.00, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 7 : Bas Droite
 
-            # --- BARRE TRANSVERSALE (CONSTRUITE AU-DESSUS DU FILET) ---
+            # --- BARRE TRANSVERSALE (Blanc opaque, pas de texture) ---
             -7.02, 4.58, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 8 : Bas Gauche
             -7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 9 : Haut Gauche
              7.02, 4.88, 0.0,  0.0,0.0,1.0,  1.0,1.0,1.0,  0.0,0.0, # 10: Haut Droit
@@ -296,11 +296,12 @@ class Game(object):
 
         self.texture_blanche = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_blanche)
+        # b'\xff\xff\xff\xff' crée un pixel BLANC et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\xff\xff\xff\xff')
         
         self.texture_noire = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_noire)
-        # b'\x00\x00\x00\xff' crée un pixel Noir (R=0, G=0, B=0) et opaque (A=255)
+        # b'\x00\x00\x00\xff' crée un pixel Noir et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
     def load_texture(filename):
@@ -309,9 +310,9 @@ class Game(object):
             return 0
         im = Image.open(filename).transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert('RGBA')
         texture_id = GL.glGenTextures(1)
-        # s´election de la texture courante `a partir de son identifiant
+        # sélection de la texture courante à partir de son identifiant
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture_id)
-        # param´etrisation de la texture
+        # paramétrisation de la texture
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -404,8 +405,8 @@ class Game(object):
             dt = min(dt, 0.1)
             # --- GESTION DE LA COULEUR DE FOND ---
             if self.game_state == "BUT":
-                # Effet "Disco" clignotant pendant le but !
-                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RVB
+                # Effet clignotant pendant le but !
+                # On utilise des sinus avec des vitesses différentes pour mélanger les couleurs RGB
                 r = (np.sin(current_time * 15.0) + 1.0) / 2.0
                 g = (np.sin(current_time * 20.0 + 2.0) + 1.0) / 2.0
                 b = (np.sin(current_time * 25.0 + 4.0) + 1.0) / 2.0
@@ -443,18 +444,17 @@ class Game(object):
                     self.velocity[2] *= 0.98
 
                 # --- COLLISION AVEC LE BUT ---
-                # 1. On définit la zone du but (basé sur les coordonnées de votre cage)
+                # On définit la zone du but (basé sur les coordonnées de la cage)
                 cage_z = -32.9
                 cage_x_min = -7.32
                 cage_x_max = 7.32
                 cage_y_min = -1.2
                 cage_y_max = -1.2 + 4.88 # = 3.68
 
-                # 2. Le ballon a-t-il touché le fond du terrain (Z) ?
                 # On utilise self.pos[2] - self.radius pour vérifier si le bord du ballon franchit la ligne
                 if self.pos[2] - self.radius <= cage_z:
                     
-                    # 3. Est-il dans le cadre (entre les poteaux en X, et sous la barre en Y) ?
+                    # On vérifie si il est dans le cadre 
                     if (cage_x_min <= self.pos[0] <= cage_x_max) and (cage_y_min <= self.pos[1] <= cage_y_max):
                         print("\n=====================")
                         print("     BUUUUUUT !!!    ")
@@ -464,7 +464,7 @@ class Game(object):
                         self.game_state = "BUT"
                         self.chrono_but = current_time # On mémorise l'heure du but
                     else:
-                        # Si on dépasse Z mais qu'on n'est pas dans le cadre, c'est une sortie de but (6 mètres)
+                        # Si on dépasse Z mais qu'on n'est pas dans le cadre, c'est raté
                         print("Sortie de but...")
                         self.game_state = "VISER"
            
@@ -487,14 +487,14 @@ class Game(object):
             # On s'assure que le Blending est DÉSACTIVÉ pour les objets opaques
             GL.glDisable(GL.GL_BLEND)
 
-            # 1. Rendu du terrain
+            # Rendu du terrain
             GL.glBindVertexArray(self.vao_sol)
             model_sol = pyrr.matrix44.create_from_translation(np.array([0.0, 0.0, 0.0], dtype=np.float32))
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_sol)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id3)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_sol, GL.GL_UNSIGNED_INT, None)
             
-            # 2. Rendu du ballon (Rotation dynamique selon la direction)
+            # Rendu du ballon (Rotation dynamique selon la direction)
             GL.glBindVertexArray(self.vao_ballon)
             
             if self.game_state == "TIR":
@@ -528,7 +528,7 @@ class Game(object):
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
             
-            # 3. Rendu de la flèche
+            # Rendu de la flèche
             if self.game_state == "VISER":
                 GL.glBindVertexArray(self.vao_fleche)
                 rot_arrow = pyrr.matrix44.create_from_y_rotation(self.aim_angle_Y)
@@ -542,7 +542,7 @@ class Game(object):
             # ON ACTIVE LE BLENDING UNIQUEMENT POUR LA CAGE ET LE FILET
             GL.glEnable(GL.GL_BLEND)
 
-            # 4. Rendu de la cage
+            # Rendu de la cage
             GL.glBindVertexArray(self.vao_cage)
             pos_cage = np.array([0.0, -1.2, -32.7], dtype=np.float32)
             model_cage = pyrr.matrix44.create_from_translation(pos_cage)
@@ -554,7 +554,7 @@ class Game(object):
             # On coupe le blending après la cage pour ne pas perturber le HUD
             GL.glDisable(GL.GL_BLEND)
 
-            # 5. Jauge HUD
+            # Jauge HUD
             if self.game_state == "CHARGER" or True: # Modifié pour toujours laisser le fond noir visible si besoin
                 GL.glDisable(GL.GL_DEPTH_TEST)
                 mat_identite = pyrr.matrix44.create_identity(dtype=np.float32)
@@ -602,7 +602,7 @@ class Game(object):
                 self.game_state = "TIR"
                 
                 # Le tir dépend maintenant de la jauge (entre 5.0 et 25.0 de puissance par exemple)
-                actual_force = 5.0 + (self.power * 20.0) 
+                actual_force = 5.0 + (self.power * 25.0) 
                 self.current_shot_force = actual_force
                 
                 dir_x = np.sin(self.angle_Y)
