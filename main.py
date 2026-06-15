@@ -305,7 +305,7 @@ class Game(object):
         # b'\x00\x00\x00\xff' crée un pixel Noir et opaque (A=255)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, b'\x00\x00\x00\xff')
 
-        # --- Modèle de l'obstacle (Un carré de 1x1 centré) ---
+        # --- Modèle de l'obstacle (Un carré noir) ---
         sommets_obstacle = np.array([
             # X, Y, Z,       Nx, Ny, Nz,   R, G, B,       U, V
             -0.7, -0.7, 0.0, 0.0,0.0,1.0,  0.0, 0.0, 0.0, 0.0, 0.0,
@@ -565,16 +565,6 @@ class Game(object):
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_ballon)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id1)
             GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_ballon, GL.GL_UNSIGNED_INT, None)
-          
-            # Affichage de la cage
-            GL.glBindVertexArray(self.vao_cage)
-            pos_cage = np.array([0.0, -1.2, -32.9], dtype=np.float32)
-            model_cage = pyrr.matrix44.create_from_translation(pos_cage)
-            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
-            
-            # 2. On lie une texture ! (Mettez texture_id1 ou chargez une texture de filet)
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture_id4)
-            GL.glDrawElements(GL.GL_TRIANGLES, self.nb_indices_cage, GL.GL_UNSIGNED_INT, c_void_p(0))
 
             # --- Affichage des Obstacles ---
             if len(self.obstacles) > 0:
