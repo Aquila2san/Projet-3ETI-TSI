@@ -544,7 +544,7 @@ class Game(object):
 
             # 4. Rendu de la cage
             GL.glBindVertexArray(self.vao_cage)
-            pos_cage = np.array([0.0, -1.2, -31.4], dtype=np.float32)
+            pos_cage = np.array([0.0, -1.2, -32.7], dtype=np.float32)
             model_cage = pyrr.matrix44.create_from_translation(pos_cage)
             GL.glUniformMatrix4fv(loc_model, 1, GL.GL_FALSE, model_cage)
             
