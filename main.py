@@ -33,8 +33,6 @@ class Game(object):
         self.gravity = np.array([0.0, -9.81, 0.0], dtype=np.float32) # Accélération g = (0, -9.81, 0)
         
         # Variables d'état de translation/rotation de la scène
-        self.angle_y = 0.0
-        self.angle_y = 0.0
         self.angle_x = 0.0
         self.trans_x = 0.0
         self.trans_y = 0.0
